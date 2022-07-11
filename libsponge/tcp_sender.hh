@@ -16,6 +16,7 @@ private:
     bool _IsStarted{false};
 
 public:
+    /* a set of functions */
     RetransmissionTimer(){}
     void startTimer(){ this->_IsStarted = true ; }
     bool isStarted(){ return this->_IsStarted ;  }
@@ -47,10 +48,13 @@ class TCPSender {
     uint64_t _next_seqno{0};
 
     /* private member added by zheyuan */
-    uint16_t _WindowSize{1};
-    uint16_t _RemainingSpace{1};
-    
-
+    uint16_t _WindowSize{1};                      // newest window size sent by receiver
+    uint16_t _RemainingSpace{1};                  // remaining space in receiver's window
+    unsigned int _RetransmissionTimes{0};         // Number of consecutive retransmissions that have occurred in a row
+    unsigned int _RetransmissionTimeout;          // RTO
+    size_t _ByteInFlight{0};              
+    RetransmissionTimer Timer{};                  // Timer
+    std::queue<TCPSegment> _NotAcknowledged{};     // TCPSegment which has been sent out but has not been acknowledged
     /* private member added by zheyuan */
 
   public:

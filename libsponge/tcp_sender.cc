@@ -20,9 +20,10 @@ using namespace std;
 TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const std::optional<WrappingInt32> fixed_isn)
     : _isn(fixed_isn.value_or(WrappingInt32{random_device()()}))
     , _initial_retransmission_timeout{retx_timeout}
-    , _stream(capacity) {}
+    , _stream(capacity) 
+    ,_RetransmissionTimeout(retx_timeout){}
 
-uint64_t TCPSender::bytes_in_flight() const { return {}; }
+uint64_t TCPSender::bytes_in_flight() const { return _ByteInFlight; }
 
 void TCPSender::fill_window() {}
 
@@ -33,6 +34,21 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
 void TCPSender::tick(const size_t ms_since_last_tick) { DUMMY_CODE(ms_since_last_tick); }
 
-unsigned int TCPSender::consecutive_retransmissions() const { return {}; }
+unsigned int TCPSender::consecutive_retransmissions() const { return this->_RetransmissionTimes; }
 
-void TCPSender::send_empty_segment() {}
+void TCPSender::send_empty_segment() {
+    TCPSegment Segment;
+
+    /* 1.build the header, set the seqno appropriately */
+    TCPHeader Header;
+    Header.seqno = this->next_seqno();
+
+    /* 2.build the payload, which is empty */
+    Buffer Data("");
+
+    /* 3.pack the header and data into segment */
+    Segment.header() = Header;
+    Segment.payload() = Data;
+
+    this->segments_out().push(Segment);     // send out the segment
+}
