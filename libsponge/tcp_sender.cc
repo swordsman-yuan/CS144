@@ -45,7 +45,7 @@ void TCPSender::fill_window() {
 
         /* 2.2 the length of Data may be less than ReadLength */
         std::string Data = this->stream_in().read(ReadLength);
-        Buffer DataBuffer(Data);                                    // pack the data into a buffer
+        Buffer DataBuffer(std::move(Data));                                    // pack the data into a buffer
 
         /* if byte stream has reached eof */
         if(this->stream_in().eof())
@@ -121,7 +121,7 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     this->_WindowSize = window_size;
 
     /* even if window_size is 0, treat it as 1, which is to prevent dead lock  */
-    uint16_t ModifiedWindowSize = window_size >= 1 : window_size : 1;           
+    uint16_t ModifiedWindowSize = window_size >= 1 ? window_size : 1;           
     this->_RemainingSpace = ModifiedWindowSize <= this->_ByteInFlight ? 0 : (ModifiedWindowSize - this->_ByteInFlight);
     
     /* fill in the window if new space has opened up */
@@ -145,7 +145,7 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
         if(this->_WindowSize > 0)
         {
             this->_RetransmissionTimes ++;          // increment the retransmission times
-            this->_RetransmissionTimeout << 1;      // double the RTO : exponential backoff algorithm
+            this->_RetransmissionTimeout <<= 1;      // double the RTO : exponential backoff algorithm
         }
     }
 
@@ -164,7 +164,7 @@ void TCPSender::send_empty_segment() {
     Header.seqno = this->next_seqno();
 
     /* 2.build the payload, which is empty */
-    Buffer Data("");
+    Buffer Data(std::move(""));
 
     /* 3.pack the header and data into segment */
     Segment.header() = Header;

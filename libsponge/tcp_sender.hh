@@ -24,7 +24,7 @@ public:
     bool isStarted(){ return this->_IsStarted ;  }
     void resetTimer(){ this->_IsStarted = false ; this->_ElapsedTime = 0 ; }
     void timeElapsedBy(size_t Increment){ if(this->_IsStarted) this->_ElapsedTime += Increment ; } 
-}
+};
 
 //! \brief The "sender" part of a TCP implementation.
 
