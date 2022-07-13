@@ -50,7 +50,6 @@ string ByteStream::peek_output(const size_t len) const {
 
     /*3.copy Byte to PeekStr while _ReadPtr do not move*/
     size_t Counter = 0;
-
     while(Counter < BytePeek)
         PeekStr.push_back(_Stream[Counter++]);      
 

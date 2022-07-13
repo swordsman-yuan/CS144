@@ -32,6 +32,7 @@ void TCPSender::fill_window() {
 
     /* 0.2 special case handler, if stream has reached its eof */
     /* and the FIN flag has not been sent out */
+    /* ATTENTION: _RemainingSpace should be larger than 1, cause FIN should occupy window space */
     if(this->_RemainingSpace > 0 && !this->_IsFIN && this->stream_in().eof())
     {
         TCPSegment Segment;
@@ -89,8 +90,8 @@ void TCPSender::fill_window() {
         std::string Data = this->stream_in().read(ReadLength);
 
         /* keep the size of data being read from byte stream */
-        size_t PayloadSize = Data.size();                                         
-        Buffer DataBuffer(std::move(Data));                                      // pack the data into a buffer
+        // size_t PayloadSize = Data.size();                                           // the Data.size() may be smaller than expected   
+        Buffer DataBuffer(std::move(Data));                                         // pack the data into a buffer
 
         /* if byte stream has reached eof after reading bytes */
         if(this->stream_in().eof())
@@ -113,7 +114,7 @@ void TCPSender::fill_window() {
         size_t OccupiedSpace = Segment.length_in_sequence_space();      
         this->_next_seqno += OccupiedSpace;                                         // update _next_seqno
         this->_ByteInFlight += OccupiedSpace;                                       // update _ByteInFlight
-        this->_RemainingSpace -= PayloadSize;                                       // update remaining space
+        this->_RemainingSpace -= OccupiedSpace;                                     // update remaining space
     }
 }
 
