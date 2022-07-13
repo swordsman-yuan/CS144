@@ -89,12 +89,15 @@ void TCPSender::fill_window() {
         std::string Data = this->stream_in().read(ReadLength);
 
         /* keep the size of data being read from byte stream */
-        // size_t DataSize = Data.size();                                         
+        size_t PayloadSize = Data.size();                                         
         Buffer DataBuffer(std::move(Data));                                      // pack the data into a buffer
 
         /* if byte stream has reached eof after reading bytes */
         if(this->stream_in().eof())
+        {
             Header.fin = true;
+            this->_IsFIN = true;        // FIN flag has been sent out
+        }
             
         /* pack the Header and Data into a segment */
         Segment.header() = Header;
@@ -110,7 +113,7 @@ void TCPSender::fill_window() {
         size_t OccupiedSpace = Segment.length_in_sequence_space();      
         this->_next_seqno += OccupiedSpace;                                         // update _next_seqno
         this->_ByteInFlight += OccupiedSpace;                                       // update _ByteInFlight
-        this->_RemainingSpace -= OccupiedSpace;                                     // update remaining space
+        this->_RemainingSpace -= PayloadSize;                                       // update remaining space
     }
 }
 
@@ -200,8 +203,6 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
         this->Timer.resetTimer();
         this->Timer.startTimer();
     }
-
-    
  }
 
 unsigned int TCPSender::consecutive_retransmissions() const { return this->_RetransmissionTimes; }
