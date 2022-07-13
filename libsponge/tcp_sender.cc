@@ -26,6 +26,41 @@ TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const s
 uint64_t TCPSender::bytes_in_flight() const { return _ByteInFlight; }
 
 void TCPSender::fill_window() {
+    /* 0.1 special case handler, if FIN flag has been sent out, return directly */
+    if(this->_IsFIN == true)
+        return;
+
+    /* 0.2 special case handler, if stream has reached its eof */
+    /* and the FIN flag has not been sent out */
+    if(this->_RemainingSpace > 0 && !this->_IsFIN && this->stream_in().eof())
+    {
+        TCPSegment Segment;
+
+        /* 1.build TCPHeader whose fin flag is 1 */
+        TCPHeader Header;
+        Header.fin = 1;
+        Header.seqno = this->next_seqno();
+
+        /* 2.build payload */
+        Buffer DataBuffer(std::move(""));
+
+        /* 3.pack the header and payload into segment */
+        Segment.header() = Header;
+        Segment.payload() = DataBuffer;
+        this->segments_out().push(Segment);
+        this->_NotAcknowledged.push(Segment);
+
+        /* start the timer if it's not started */
+        if(this->Timer.isStarted() == false)
+            this->Timer.startTimer();
+        
+        /* update the status of sender */
+        this->_RemainingSpace --;
+        this->_ByteInFlight ++;
+        this->_next_seqno ++;
+        this->_IsFIN = true;
+    }
+
     /* fill the window according to _RemainingSpace */
     /* send out segment as much as possioble if there are */
     /* 1.bytes to be read from byte_stream */
@@ -52,13 +87,15 @@ void TCPSender::fill_window() {
 
         /* 2.2 the length of Data may be less than ReadLength */
         std::string Data = this->stream_in().read(ReadLength);
-        size_t DataSize = Data.size();                                         // keep the size of data being read from byte stream
-        Buffer DataBuffer(std::move(Data));                                    // pack the data into a buffer
 
-        /* if byte stream has reached eof */
+        /* keep the size of data being read from byte stream */
+        // size_t DataSize = Data.size();                                         
+        Buffer DataBuffer(std::move(Data));                                      // pack the data into a buffer
+
+        /* if byte stream has reached eof after reading bytes */
         if(this->stream_in().eof())
             Header.fin = true;
-
+            
         /* pack the Header and Data into a segment */
         Segment.header() = Header;
         Segment.payload() = DataBuffer;
@@ -71,9 +108,9 @@ void TCPSender::fill_window() {
 
         /* 3. modify the status of sender if necessary */
         size_t OccupiedSpace = Segment.length_in_sequence_space();      
-        this->_next_seqno += OccupiedSpace;                                     // update _next_seqno
-        this->_ByteInFlight += OccupiedSpace;                                   // update _ByteInFlight
-        this->_RemainingSpace -= DataSize;                                      // update remaining space
+        this->_next_seqno += OccupiedSpace;                                         // update _next_seqno
+        this->_ByteInFlight += OccupiedSpace;                                       // update _ByteInFlight
+        this->_RemainingSpace -= OccupiedSpace;                                     // update remaining space
     }
 }
 
@@ -96,9 +133,20 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
         size_t OccupiedSpace = Front.length_in_sequence_space();                            // the number of seqno occupied by segment
 
         /* the segment has been fully acknowledged by receiver */
-        if(AbsSeqno + OccupiedSpace <= AckAbsSeqno)
+        if(AbsSeqno + OccupiedSpace == AckAbsSeqno)
         {
             this->_NotAcknowledged.pop();   // pop out the segment
+            this->_ByteInFlight -= OccupiedSpace;
+            PopFlag = true;
+        }
+        else if(AbsSeqno + OccupiedSpace < AckAbsSeqno)
+        {
+            this->_NotAcknowledged.pop();
+            if(this->_NotAcknowledged.empty())      // wrong seqno arrived, the ackno is larger than the sum of bytes has been sent
+            {
+                this->_NotAcknowledged.push(Front); // push the segment back to queue
+                break;
+            }
             this->_ByteInFlight -= OccupiedSpace;
             PopFlag = true;
         }

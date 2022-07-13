@@ -51,6 +51,7 @@ class TCPSender {
 
     /* private member added by zheyuan */
     bool _IsSYN{false};                             // is SYN flag has been sent out
+    bool _IsFIN{false};                             // is FIN flag has been sent out
     uint16_t _WindowSize{1};                        // newest window size sent by receiver
     uint16_t _RemainingSpace{1};                    // remaining space in receiver's window
     unsigned int _RetransmissionTimes{0};           // Number of consecutive retransmissions that have occurred in a row
