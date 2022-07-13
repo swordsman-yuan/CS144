@@ -32,7 +32,7 @@ size_t ByteStream::write(const string &data) {
     while(Counter < ByteWrite)
         _Stream.push_back(data[Counter++]);       
     
-    /*4.add the ByteWrite to TotalWritten*/
+    /* 4.add the ByteWrite to TotalWritten */
     _TotalWritten += ByteWrite;
 
     return ByteWrite;

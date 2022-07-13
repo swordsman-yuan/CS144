@@ -30,7 +30,7 @@ void TCPSender::fill_window() {
     /* send out segment as much as possioble if there are */
     /* 1.bytes to be read from byte_stream */
     /* 2.there exists space in window */
-    while(this->_RemainingSpace != 0 && this->stream_in().buffer_empty())
+    while(this->_RemainingSpace > 0 && (!this->stream_in().buffer_empty() || !this->_IsSYN))
     {
         TCPSegment Segment;
         
@@ -38,27 +38,27 @@ void TCPSender::fill_window() {
         TCPHeader Header;
         Header.seqno = this->next_seqno();
 
-        /* 2.build the payload */
-        /* 2.1 calculate the length should be read from byte stream */
-        size_t ReadLength = this->_RemainingSpace <= TCPConfig::MAX_PAYLOAD_SIZE ?
-                            this->_RemainingSpace : TCPConfig::MAX_PAYLOAD_SIZE ; 
-
-        /* 2.2 the length of Data may be less than ReadLength */
-        std::string Data = this->stream_in().read(ReadLength);
-        Buffer DataBuffer(std::move(Data));                                    // pack the data into a buffer
-
-        /* if byte stream has reached eof */
-        if(this->stream_in().eof())
-            Header.fin = true;
-
         /* if this is the first segment been sent out */
         if(this->_IsSYN == false)
         {
             Header.syn = true;
             this->_IsSYN = true;                    // the SYN can be sent only once
         }
-            
-        
+
+        /* 2.build the payload */
+        /* 2.1 calculate the length should be read from byte stream */
+        size_t ReadLength = this->_RemainingSpace <= TCPConfig::MAX_PAYLOAD_SIZE    ?
+                            this->_RemainingSpace : TCPConfig::MAX_PAYLOAD_SIZE     ; 
+
+        /* 2.2 the length of Data may be less than ReadLength */
+        std::string Data = this->stream_in().read(ReadLength);
+        size_t DataSize = Data.size();                                         // keep the size of data being read from byte stream
+        Buffer DataBuffer(std::move(Data));                                    // pack the data into a buffer
+
+        /* if byte stream has reached eof */
+        if(this->stream_in().eof())
+            Header.fin = true;
+
         /* pack the Header and Data into a segment */
         Segment.header() = Header;
         Segment.payload() = DataBuffer;
@@ -70,10 +70,10 @@ void TCPSender::fill_window() {
             this->Timer.startTimer();
 
         /* 3. modify the status of sender if necessary */
-        this->_RemainingSpace = this->_RemainingSpace - Data.size();        // update remaining space
         size_t OccupiedSpace = Segment.length_in_sequence_space();      
-        this->_next_seqno += OccupiedSpace;                                 // update _next_seqno
-        this->_ByteInFlight += OccupiedSpace;                               // update _ByteInFlight
+        this->_next_seqno += OccupiedSpace;                                     // update _next_seqno
+        this->_ByteInFlight += OccupiedSpace;                                   // update _ByteInFlight
+        this->_RemainingSpace -= DataSize;                                      // update remaining space
     }
 }
 
@@ -99,7 +99,7 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
         if(AbsSeqno + OccupiedSpace <= AckAbsSeqno)
         {
             this->_NotAcknowledged.pop();   // pop out the segment
-            this->_ByteInFlight = this->_ByteInFlight - OccupiedSpace;
+            this->_ByteInFlight -= OccupiedSpace;
             PopFlag = true;
         }
         else break;
@@ -122,7 +122,7 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
 
     /* even if window_size is 0, treat it as 1, which is to prevent dead lock  */
     uint16_t ModifiedWindowSize = window_size >= 1 ? window_size : 1;           
-    this->_RemainingSpace = ModifiedWindowSize <= this->_ByteInFlight ? 0 : (ModifiedWindowSize - this->_ByteInFlight);
+    this->_RemainingSpace = (ModifiedWindowSize <= this->_ByteInFlight) ? 0 : (ModifiedWindowSize - this->_ByteInFlight);
     
     /* fill in the window if new space has opened up */
     if(this->_RemainingSpace > 0)
@@ -135,7 +135,7 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
     this->Timer.timeElapsedBy(ms_since_last_tick);
 
     /* 2.if timer has expired */
-    if(this->Timer.getTime() > this->_RetransmissionTimeout)
+    if(this->Timer.getTime() >= this->_RetransmissionTimeout)
     {
         /* retransmit the earliest unacknowledged segment */
         TCPSegment Front = this->_NotAcknowledged.front();
@@ -144,14 +144,16 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
         /* if the newest window size is not zero */
         if(this->_WindowSize > 0)
         {
-            this->_RetransmissionTimes ++;          // increment the retransmission times
-            this->_RetransmissionTimeout <<= 1;      // double the RTO : exponential backoff algorithm
+            this->_RetransmissionTimes ++;              // increment the retransmission times
+            this->_RetransmissionTimeout <<= 1;         // double the RTO : exponential backoff algorithm
         }
+
+        /* 3.reset the timer and restart it */
+        this->Timer.resetTimer();
+        this->Timer.startTimer();
     }
 
-    /* 3.reset the timer and restart it */
-    this->Timer.resetTimer();
-    this->Timer.startTimer();
+    
  }
 
 unsigned int TCPSender::consecutive_retransmissions() const { return this->_RetransmissionTimes; }
