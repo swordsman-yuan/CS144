@@ -32,7 +32,7 @@ void TCPSender::fill_window() {
 
     /* 0.2 special case handler, if stream has reached its eof */
     /* and the FIN flag has not been sent out */
-    /* ATTENTION: _RemainingSpace should be larger than 1, cause FIN should occupy window space */
+    /* ATTENTION: _RemainingSpace should be larger than 0, cause FIN should occupy window space */
     if(this->_RemainingSpace > 0 && !this->_IsFIN && this->stream_in().eof())
     {
         TCPSegment Segment;
@@ -79,6 +79,7 @@ void TCPSender::fill_window() {
         {
             Header.syn = true;
             this->_IsSYN = true;                    // the SYN can be sent only once
+            this->_RemainingSpace --;               // SYN occupies window space
         }
 
         /* 2.build the payload */
@@ -90,17 +91,19 @@ void TCPSender::fill_window() {
         std::string Data = this->stream_in().read(ReadLength);
 
         /* keep the size of data being read from byte stream */
-        // size_t PayloadSize = Data.size();                                           // the Data.size() may be smaller than expected   
+        size_t PayloadSize = Data.size();                                           // the Data.size() may be smaller than expected   
+        this->_RemainingSpace -= PayloadSize;                                       // update remaining space
         Buffer DataBuffer(std::move(Data));                                         // pack the data into a buffer
 
         /* if byte stream has reached eof after reading bytes */
-        if(this->stream_in().eof())
+        if(this->_RemainingSpace > 0 && this->stream_in().eof())
         {
             Header.fin = true;
             this->_IsFIN = true;        // FIN flag has been sent out
+            this->_RemainingSpace --;
         }
             
-        /* pack the Header and Data into a segment */
+        /* pack the Header and Data into segment */
         Segment.header() = Header;
         Segment.payload() = DataBuffer;
 
@@ -110,11 +113,10 @@ void TCPSender::fill_window() {
         if(this->Timer.isStarted() == false)        // if the timer has not started, start it immediately
             this->Timer.startTimer();
 
-        /* 3. modify the status of sender if necessary */
+        /* 4. modify the status of sender if necessary */
         size_t OccupiedSpace = Segment.length_in_sequence_space();      
         this->_next_seqno += OccupiedSpace;                                         // update _next_seqno
         this->_ByteInFlight += OccupiedSpace;                                       // update _ByteInFlight
-        this->_RemainingSpace -= OccupiedSpace;                                     // update remaining space
     }
 }
 
@@ -129,7 +131,7 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     /* using _next_seqno as checkpoint */
     uint64_t AckAbsSeqno = unwrap(ackno, this->_isn, this->_next_seqno);
 
-    /* 2.scan the _NotAcknowledge queue  */
+    /* 2.scan the _NotAcknowledge queue */
     while(!this->_NotAcknowledged.empty())
     {
         TCPSegment Front = this->_NotAcknowledged.front();
@@ -146,10 +148,11 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
         else if(AbsSeqno + OccupiedSpace < AckAbsSeqno)
         {
             this->_NotAcknowledged.pop();
-            if(this->_NotAcknowledged.empty())      // wrong seqno arrived, the ackno is larger than the sum of bytes has been sent
+            /* wrong seqno arrived, the ackno is larger than the sum of bytes has been sent */
+            if(this->_NotAcknowledged.empty())      
             {
                 this->_NotAcknowledged.push(Front); // push the segment back to queue
-                break;
+                break;                              // and jump out of loop
             }
             this->_ByteInFlight -= OccupiedSpace;
             PopFlag = true;
