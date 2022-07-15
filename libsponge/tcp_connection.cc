@@ -31,14 +31,17 @@ void TCPConnection::segment_received(const TCPSegment &seg) { DUMMY_CODE(seg); }
 bool TCPConnection::active() const { return {}; }
 
 size_t TCPConnection::write(const string &data) {
-    DUMMY_CODE(data);
-    return {};
+    /* write data to byte stream directly */
+    return this->_sender.stream_in().write(data);       
 }
 
 //! \param[in] ms_since_last_tick number of milliseconds since the last call to this method
 void TCPConnection::tick(const size_t ms_since_last_tick) { DUMMY_CODE(ms_since_last_tick); }
 
-void TCPConnection::end_input_stream() {}
+void TCPConnection::end_input_stream() {
+    /* set the _endin flag as true */
+    this->_sender.stream_in().end_input();      
+}
 
 // Initiate a connection by sending a SYN segment
 void TCPConnection::connect() {
@@ -46,7 +49,12 @@ void TCPConnection::connect() {
     /* at first, the sender will send a TCPSegment whose SYN flag has been set */
     this->_sender.fill_window();
 
-    /*  */
+    /* 2.take out the TCPSegment and send out */
+    TCPSegment Front = this->_sender.segments_out().front();
+    this->_sender.segments_out().pop();     // pop out the segment cause it has been sent out
+
+    /* the ackno and window size is meaningless, ignore them, send directly */
+    this->segments_out().push(Front);
 }
 
 TCPConnection::~TCPConnection() {
