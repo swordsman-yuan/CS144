@@ -17,7 +17,7 @@ private:
 
 public:
     /* a set of functions to access & manipulate timer */
-    /* implement by zheyuan */
+    /* implemented by zheyuan */
     RetransmissionTimer(){}
     size_t getTime(){ return this->_ElapsedTime ; }
     void startTimer(){ this->_IsStarted = true ; }
