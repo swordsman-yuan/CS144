@@ -22,7 +22,7 @@ class TCPReceiver {
 
     /*private member added by zheyuan*/
     WrappingInt32 _ISN;     // initial sequence number
-    bool _IsValid;          // flag indicating whether the ISN has been set or not
+    bool _IsISN;          // flag indicating whether the ISN has been set or not
 
   public:
     //! \brief Construct a TCP receiver

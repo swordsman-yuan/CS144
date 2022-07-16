@@ -10,7 +10,7 @@
 #include <queue>
 
 /* helper class : retransmission timer  */
-class RetransmissionTimer{
+class Timer{
 private:
     size_t _ElapsedTime{0};
     bool _IsStarted{false};
@@ -18,7 +18,7 @@ private:
 public:
     /* a set of functions to access & manipulate timer */
     /* implemented by zheyuan */
-    RetransmissionTimer(){}
+    Timer(){}
     size_t getTime(){ return this->_ElapsedTime ; }
     void startTimer(){ this->_IsStarted = true ; }
     bool isStarted(){ return this->_IsStarted ;  }
@@ -57,7 +57,7 @@ class TCPSender {
     unsigned int _RetransmissionTimes{0};           // Number of consecutive retransmissions that have occurred in a row
     unsigned int _RetransmissionTimeout;            // RTO
     size_t _ByteInFlight{0};              
-    RetransmissionTimer Timer{};                    // Timer
+    Timer _RetransmissionTimer{};                   // Timer
     std::queue<TCPSegment> _NotAcknowledged{};      // TCPSegment which has been sent out but has not been acknowledged
     /* private member added by zheyuan */
 

@@ -21,6 +21,12 @@ class TCPConnection {
     //! in case the remote TCPConnection doesn't know we've received its whole stream?
     bool _linger_after_streams_finish{true};
 
+    /* private member added by zheyuan */
+    /* initalize as false, after executing 'connect' function, it is set as true */
+    bool _IsActive{false};  
+    Timer _LastReceivedTimer{};       // timer to record the time passed since the last segment received
+    /* private member added by zheyuan */
+
   public:
     //! \name "Input" interface for the writer
     //!@{

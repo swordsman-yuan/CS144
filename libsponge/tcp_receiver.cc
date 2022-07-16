@@ -14,11 +14,11 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
     if(seg.header().syn)    // if the SYN flag is true
     {
         this->_ISN = Seqno;
-        this->_IsValid = true;      // now the ISN is valid
+        this->_IsISN = true;      // now the ISN is valid
     }
 
     /*if the ISN has not been set, the segment is invalid*/
-    if(this->_IsValid == false)
+    if(this->_IsISN == false)
         return;
         
     /*2.push any data or end-of-stream marker to the StreamReassembler*/
@@ -41,12 +41,12 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
     /*2.5 write the newly-arrived string to stream reassembler*/
     this->_reassembler.push_substring(Data, StreamIndice, seg.header().fin); 
 
-    /*QUESTION: When to set the _IsValid flag to false?*/
+    /*QUESTION: When to set the _IsISN flag to false?*/
 }
 
 optional<WrappingInt32> TCPReceiver::ackno() const {
     /*0. special case handler: the ISN has not been set*/
-    if(this->_IsValid == false)
+    if(this->_IsISN == false)
         return std::nullopt;
 
     /*1. inquire stream reassembler for _NextIndex, plus 1 to get AbsoluteSeqNo*/

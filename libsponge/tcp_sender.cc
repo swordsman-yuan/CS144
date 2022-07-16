@@ -52,8 +52,8 @@ void TCPSender::fill_window() {
         this->_NotAcknowledged.push(Segment);
 
         /* start the timer if it's not started */
-        if(this->Timer.isStarted() == false)
-            this->Timer.startTimer();
+        if(this->_RetransmissionTimer.isStarted() == false)
+            this->_RetransmissionTimer.startTimer();
         
         /* update the status of sender */
         this->_RemainingSpace --;
@@ -110,8 +110,8 @@ void TCPSender::fill_window() {
         /* 3.send out the segment immediately */
         this->segments_out().push(Segment);
         this->_NotAcknowledged.push(Segment);
-        if(this->Timer.isStarted() == false)        // if the timer has not started, start it immediately
-            this->Timer.startTimer();
+        if(this->_RetransmissionTimer.isStarted() == false)        // if the timer has not started, start it immediately
+            this->_RetransmissionTimer.startTimer();
 
         /* 4. modify the status of sender if necessary */
         size_t OccupiedSpace = Segment.length_in_sequence_space();      
@@ -165,12 +165,12 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     {
         this->_RetransmissionTimes = 0;                                     // reset retransmission times
         this->_RetransmissionTimeout = _initial_retransmission_timeout;     // reset RTO
-        this->Timer.resetTimer();                                           // reset timer
+        this->_RetransmissionTimer.resetTimer();                            // reset timer
     }
 
     /* 4.start the timer again if _NotAcknowledged is not empty */
     if(!this->_NotAcknowledged.empty())
-        this->Timer.startTimer();
+        this->_RetransmissionTimer.startTimer();
 
     /* 5.update the window size according to window_size conveyed by receiver */
     this->_WindowSize = window_size;
@@ -187,10 +187,10 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
 void TCPSender::tick(const size_t ms_since_last_tick) { 
     /* 1.add elapsed time to timer */
-    this->Timer.timeElapsedBy(ms_since_last_tick);
+    this->_RetransmissionTimer.timeElapsedBy(ms_since_last_tick);
 
     /* 2.if timer has expired */
-    if(this->Timer.getTime() >= this->_RetransmissionTimeout)
+    if(this->_RetransmissionTimer.getTime() >= this->_RetransmissionTimeout)
     {
         /* retransmit the earliest unacknowledged segment */
         TCPSegment Front = this->_NotAcknowledged.front();
@@ -204,8 +204,8 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
         }
 
         /* 3.reset the timer and restart it */
-        this->Timer.resetTimer();
-        this->Timer.startTimer();
+        this->_RetransmissionTimer.resetTimer();
+        this->_RetransmissionTimer.startTimer();
     }
  }
 
