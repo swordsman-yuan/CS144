@@ -62,6 +62,11 @@ class TCPSender {
     /* private member added by zheyuan */
 
   public:
+    /* helper function added by zheyuan */
+    bool isNotAcknowledgedEmpty(){ return this->_NotAcknowledged.empty(); }
+    bool isFINSent(){ return this->_IsFIN; }
+    /* helper function added by zheyuan */
+
     //! Initialize a TCPSender
     TCPSender(const size_t capacity = TCPConfig::DEFAULT_CAPACITY,
               const uint16_t retx_timeout = TCPConfig::TIMEOUT_DFLT,

@@ -24,7 +24,8 @@ class TCPConnection {
     /* private member added by zheyuan */
     /* initalize as false, after executing 'connect' function, it is set as true */
     bool _IsActive{false};  
-    Timer _LastReceivedTimer{};       // timer to record the time passed since the last segment received
+    Timer _LastReceivedTimer{};               // timer to record the time passed since the last segment received
+    void sendSegment(bool RST);               // set the field maintained by tcp receiever and send out immediately
     /* private member added by zheyuan */
 
   public:
