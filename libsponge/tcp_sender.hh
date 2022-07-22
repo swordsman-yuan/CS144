@@ -19,9 +19,9 @@ public:
     /* a set of functions to access & manipulate timer */
     /* implemented by zheyuan */
     Timer(){}
-    size_t getTime(){ return this->_ElapsedTime ; }
+    size_t getTime() const { return this->_ElapsedTime ; }
     void startTimer(){ this->_IsStarted = true ; }
-    bool isStarted(){ return this->_IsStarted ;  }
+    bool isStarted() const { return this->_IsStarted ;  }
     void resetTimer(){ this->_IsStarted = false ; this->_ElapsedTime = 0 ; }
     void timeElapsedBy(size_t Increment){ if(this->_IsStarted) this->_ElapsedTime += Increment ; } 
 };
@@ -64,6 +64,7 @@ class TCPSender {
   public:
     /* helper function added by zheyuan */
     bool isNotAcknowledgedEmpty(){ return this->_NotAcknowledged.empty(); }
+    uint16_t getRemainingSpace(){ return this->_RemainingSpace; }
     bool isFINSent(){ return this->_IsFIN; }
     /* helper function added by zheyuan */
 

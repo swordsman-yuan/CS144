@@ -6,6 +6,11 @@
 #include "tcp_sender.hh"
 #include "tcp_state.hh"
 
+/* helper enumeration added by zheyuan */
+/* refer to TCP state transition diagram */
+enum MyState{CLOSED, SYN_SENT, ESTABLISHED, FIN_WAIT1, FIN_WAIT2, CLOSING, CLOSE_WAIT, LAST_ACK, TIME_WAIT};
+/* helper enumeration added by zheyuan */
+
 //! \brief A complete endpoint of a TCP connection
 class TCPConnection {
   private:
@@ -23,9 +28,10 @@ class TCPConnection {
 
     /* private member added by zheyuan */
     /* initalize as false, after executing 'connect' function, it is set as true */
+    MyState _CurrentState{MyState::CLOSED};    
     bool _IsActive{false};  
     Timer _LastReceivedTimer{};               // timer to record the time passed since the last segment received
-    void sendSegment(bool RST);               // set the field maintained by tcp receiever and send out immediately
+    bool sendSegment(bool RST);               // set the field maintained by tcp receiever and send out immediately
     /* private member added by zheyuan */
 
   public:

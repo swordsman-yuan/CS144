@@ -51,12 +51,29 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
         /*just ignore it, ATTENTION: the string can not be empty*/
         if(index + data.size() <= _NextIndex)
                 return;
-                
-        /*1.trying to merge the newly arrived string*/
+
+        /* 1.truncate the newly-arrived string if needed */
+        size_t RemainingCapacity = this->_output.remaining_capacity();          // how much space are left
+        size_t LastReassembled = this->_NextIndex + RemainingCapacity - 1;      // calculate the last byte's index can be reassembled
+
+        bool TruncatedFlag = false;  // flag indicating whether we have truncated string                                   
+        std::string TruncatedData = "";
+        if(index > LastReassembled)
+         /* if the newly-arrived string has exceeded the LastReassembled byte */
+         /* return directly */
+                return;
+        else
+        {
+                TruncatedData = data.substr(0, LastReassembled - index + 1);
+                if(TruncatedData.size() < data.size())
+                        TruncatedFlag = true;
+        }
+
+        /*2.trying to merge the newly arrived string*/
         /*construct the string*/
-        std::string NewString = data;                                            // _Str
-        std::pair<size_t, size_t> NewInteval(index, index + data.size() - 1);    // _Inteval
-        _SubString NewlyArrived(NewInteval, NewString, eof);                     // call ctor
+        std::string NewString = TruncatedData;                                                  // _Str
+        std::pair<size_t, size_t> NewInteval(index, index + TruncatedData.size() - 1);          // _Inteval
+        _SubString NewlyArrived(NewInteval, NewString, TruncatedFlag ? false : eof);           // call ctor
 
         /*push the substring into manager*/
         this->_ArrivalStrManager.push_back(NewlyArrived);
@@ -90,43 +107,6 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
                 /*2.4 erase the first element in _ArrivalStrManager*/
                 this->_ArrivalStrManager.erase(this->_ArrivalStrManager.begin());
         }
-
-        /*3.truncate the arrived string in _ArrivalStrManager if capcacity is exceeded*/
-        size_t RemainingCapacity = this->_output.remaining_capacity();  // how much space are left
-        size_t BufferedSize = this->unassembled_bytes();                // how much space are needed
-         
-        if(BufferedSize > RemainingCapacity)      // truncate is needed
-        {
-                size_t Difference = BufferedSize - RemainingCapacity;
-                /*truncate the arrival string if needed, from back to front*/
-                // don't use int i to iterate the vector, using iterator instead
-                for(long i = this->_ArrivalStrManager.size() - 1 ; i >= 0 ; --i)
-                        if(Difference >= this->_ArrivalStrManager[i]._Str.size())
-                        {
-                                Difference = Difference - this->_ArrivalStrManager[i]._Str.size();
-                                this->_ArrivalStrManager.pop_back();
-                        }
-                        else
-                        {
-                                if(Difference == 0)
-                                        break;
-                                else    // truncate the last string partly away
-                                {
-                                        this->_ArrivalStrManager[i]._Str = this->_ArrivalStrManager[i]._Str.substr(
-                                                0,
-                                                this->_ArrivalStrManager[i]._Str.size() - Difference
-                                        );                                                      // string
-
-                                        this->_ArrivalStrManager[i]._Inteval.second =           // inteval
-                                        this->_ArrivalStrManager[i]._Inteval.first +
-                                        this->_ArrivalStrManager[i]._Str.size() - 1;
-
-                                        this->_ArrivalStrManager[i]._Eof = false;              // _Eof must be false
-                                        break;  // jump out of loop                                                
-                                }
-                        }
-        }
-        
 }
 
 /*ATTENTION: the substring should be merged before counted*/
