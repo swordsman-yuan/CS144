@@ -63,7 +63,6 @@ class TCPSender {
 
   public:
     /* helper function added by zheyuan */
-    bool isNotAcknowledgedEmpty(){ return this->_NotAcknowledged.empty(); }
     uint16_t getRemainingSpace(){ return this->_RemainingSpace; }
     bool isFINSent(){ return this->_IsFIN; }
     /* helper function added by zheyuan */

@@ -9,7 +9,8 @@
 /* helper enumeration added by zheyuan */
 /* refer to TCP state transition diagram */
 enum MyState{
-              CLOSED_LISTEN,
+              CLOSED,
+              LISTEN,
               SYN_RCVD,
               SYN_SENT, 
               ESTABLISHED, 
@@ -18,7 +19,8 @@ enum MyState{
               CLOSING, 
               CLOSE_WAIT, 
               LAST_ACK, 
-              TIME_WAIT
+              TIME_WAIT,
+              RESET
             };
 /* helper enumeration added by zheyuan */
 
@@ -39,10 +41,11 @@ class TCPConnection {
 
     /* private member added by zheyuan */
     /* initalize as false, after executing 'connect' function, it is set as true */
-    MyState _CurrentState{MyState::CLOSED_LISTEN};    
+    MyState _CurrentState{MyState::LISTEN};    
     bool _IsActive{true};  
-    Timer _LastReceivedTimer{};               // timer to record the time passed since the last segment received
-    bool sendSegment(bool RST);               // set the field maintained by tcp receiever and send out immediately
+    Timer _LastReceivedTimer{};                 // timer to record the time passed since the last segment received
+    bool sendSegment(bool RST, bool SYN);       // set the field maintained by tcp receiever and send out immediately
+    void sendAck(bool RST, bool SYN);  // send out at least one segment with flag correctly set 
     /* private member added by zheyuan */
 
   public:
