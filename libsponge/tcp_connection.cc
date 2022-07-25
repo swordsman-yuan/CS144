@@ -175,21 +175,35 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         if(seg.header().ack)
         {
             this->_receiver.segment_received(seg);
-            this->_sender.ack_received(seg.header().ackno, seg.header().win);
-            if(this->_receiver.stream_out().input_ended())          // FIN has been received
+            this->_sender.ack_received(seg.header().ackno, seg.header().win);   // fill_window can be called
+            if(seg.header().fin)
             {
-                if(!this->_sender.stream_in().eof())                // passive close, lingering is not needed
-                    this->_linger_after_streams_finish = false;
-                if(seg.length_in_sequence_space() != 0)             // not necessary
+                if(this->_receiver.stream_out().input_ended())          // FIN has been received
+                {
+                    this->_linger_after_streams_finish = false;         // must be false, cause FIN has not been send out
                     this->sendAck(false, false);
-                this->_CurrentState = MyState::CLOSE_WAIT;              
+
+                    /* transformation happens for certain */
+                    if(this->_sender.stream_in().eof())
+                        this->_CurrentState = MyState::LAST_ACK;
+                    else
+                        this->_CurrentState = MyState::CLOSE_WAIT;              
+                }
+                else                                                    // FIN lost or discarded
+                {             
+                    this->sendAck(false, false);
+                    if(this->_sender.stream_in().eof())                 // transform to FIN_WAIT1
+                        this->_CurrentState = MyState::FIN_WAIT1;
+                }
             }
-            else                                                    // respond to segment normally
+            else                                                        // respond to seg normally(t_ucD_16_1 cannot pass)
             {
                 if(seg.length_in_sequence_space() != 0)
                     this->sendAck(false, false);
-                else                                                // send data if necessary
+                else
                     this->sendSegment(false, false);
+                if(this->_sender.stream_in().eof())
+                    this->_CurrentState = MyState::FIN_WAIT1;
             }
         }
     }
@@ -203,6 +217,8 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
                 this->sendAck(false, false);
             else
                 this->sendSegment(false, false);                    // if the segment occupies no space, only send data 
+            if(this->_sender.stream_in().eof())                     // transform to LAST_ACK
+                this->_CurrentState = MyState::LAST_ACK;
         }       
     }
     else if(this->_CurrentState == MyState::LAST_ACK)               // LAST_ACK √
@@ -369,6 +385,7 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
         this->_CurrentState = MyState::CLOSED;
         return;
     }
+    
 }
 
 void TCPConnection::end_input_stream() {
@@ -380,14 +397,16 @@ void TCPConnection::end_input_stream() {
     if(this->_CurrentState == MyState::ESTABLISHED)
     {
         this->_sender.fill_window();
-        this->sendSegment(false, false);                // send out the segment with FIN set
-        this->_CurrentState = MyState::FIN_WAIT1;       // state tranfer to FIN_WAIT1
+        this->sendSegment(false, false);                    // send out the segment with FIN set
+        if(this->_sender.stream_in().eof())
+            this->_CurrentState = MyState::FIN_WAIT1;       // state tranfer to FIN_WAIT1
     }
     else if(this->_CurrentState == MyState::CLOSE_WAIT)
     {
         this->_sender.fill_window();
-        this->sendSegment(false, false);                // send out segment with FIN set
-        this->_CurrentState = MyState::LAST_ACK;        // state transfer to LAST_ACK
+        this->sendSegment(false, false);                    // send out segment with FIN set
+        if(this->_sender.stream_in().eof())
+            this->_CurrentState = MyState::LAST_ACK;        // state transfer to LAST_ACK
     }
 }
 
@@ -404,7 +423,7 @@ void TCPConnection::connect() {
         this->_CurrentState = MyState::SYN_SENT;           
 
         /* DEBUG */
-        cerr << "ZZY:LISTEN->SYN_SENT" << endl;
+        // cerr << "ZZY:LISTEN->SYN_SENT" << endl;
     }
         
 
