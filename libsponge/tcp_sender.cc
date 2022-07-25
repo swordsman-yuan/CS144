@@ -110,7 +110,7 @@ void TCPSender::fill_window() {
         /* 3.send out the segment immediately */
         this->segments_out().push(Segment);
         this->_NotAcknowledged.push(Segment);
-        if(this->_RetransmissionTimer.isStarted() == false)        // if the timer has not started, start it immediately
+        if(this->_RetransmissionTimer.isStarted() == false)                         // if the timer has not started, start it immediately
             this->_RetransmissionTimer.startTimer();
 
         /* 4. modify the status of sender if necessary */

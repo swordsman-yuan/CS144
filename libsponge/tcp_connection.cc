@@ -108,15 +108,16 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         }
     
     /* FSM FOR TCP CONNECTION */
-    if(this->_CurrentState == MyState::LISTEN)                      // LISTEN
+    if(this->_CurrentState == MyState::LISTEN)                      // LISTEN √
     {
         if(seg.header().syn)                                        // if the arriving segment's SYN is true
         {
             this->_receiver.segment_received(seg);                  // receive the segment
             this->connect();                                        // finish the 2nd shaking
+            this->_CurrentState = MyState::SYN_RCVD;
         }
     }
-    else if(this->_CurrentState == MyState::SYN_SENT)               // SYN_SENT
+    else if(this->_CurrentState == MyState::SYN_SENT)               // SYN_SENT √
     {
         if(seg.header().syn && seg.header().ack)                    // transform to ESTABLISHED
         {
@@ -126,174 +127,167 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             if(this->_sender.bytes_in_flight() == 0)
                 this->_CurrentState = MyState::ESTABLISHED;
         }
-        else if(seg.header().syn && !seg.header().ack)              // transform to SYN_RCVD
+        else if(seg.header().syn && !seg.header().ack)              // transform to SYN_RCVD, simultaneous open
         {
             this->_receiver.segment_received(seg);
             this->sendAck(false, false);
             this->_CurrentState = MyState::SYN_RCVD;                
         }
     }
-    else if(this->_CurrentState == MyState::SYN_RCVD)
+    else if(this->_CurrentState == MyState::SYN_RCVD)               // SYN_RCVD ？
     {
         if(seg.header().ack)
         {
             this->_receiver.segment_received(seg);
             this->_sender.ack_received(seg.header().ackno, seg.header().win);
-            if(this->_sender.bytes_in_flight() == 0)
-                this->_CurrentState = MyState::ESTABLISHED;
+            if(this->_sender.bytes_in_flight() == 0)                // all the segments has been acked
+                this->_CurrentState = MyState::ESTABLISHED;         // transform to ESTABLISHED
+            else if(seg.length_in_sequence_space() != 0)
+                this->sendAck(false, false);
         }
         
     }
-    else if(this->_CurrentState == MyState::ESTABLISHED)              // ESTABLISHED
+    else if(this->_CurrentState == MyState::ESTABLISHED)            // ESTABLISHED √
     {
         if(seg.header().ack)
         {
             this->_receiver.segment_received(seg);
             this->_sender.ack_received(seg.header().ackno, seg.header().win);
-            if(this->_receiver.stream_out().input_ended() == false)   // FIN has not been received
+            if(this->_receiver.stream_out().input_ended())          // FIN has been received
             {
-                if()
+                if(!this->_sender.stream_in().eof())                // passive close, lingering is not needed
+                    this->_linger_after_streams_finish = false;
+                if(seg.length_in_sequence_space() != 0) 
+                    this->sendAck(false, false);
+                this->_CurrentState = MyState::CLOSE_WAIT;              
+            }
+            else                                                    // respond to segment normally
+            {
+                if(seg.length_in_sequence_space() != 0)
+                    this->sendAck(false, false);
+                else                                                // send data if necessary
+                    this->sendSegment(false, false);
             }
         }
     }
-    /* 2.extract the segment needed by sender */
-    /* 2.1 extract ackno and window_size if ack flag is set */
-    WrappingInt32 Ackno = seg.header().ackno;
-    uint16_t WindowSize = seg.header().win;
-
-    /* 2.2 invoke the sender's ack_received function */
-    this->_sender.ack_received(Ackno, WindowSize);      // the sender may try to fill the window after invoking ack_received
-
-    /* MAIN CODE OF TCP FSM */
-    /* REFER TO TCP TRANSITION DIAGRAM */
-    if  (
-            this->_CurrentState == MyState::SYN_SENT &&
-            this->_receiver.isISNReceived() == true &&              // SYN has been received
-            this->_sender.bytes_in_flight() == 0                    // ack has been received
-        )    
+    else if(this->_CurrentState == MyState::CLOSE_WAIT)             // CLOSE_WAIT : wait for positive close √
+    {
+        if(seg.header().ack)
         {
-            this->sendAck(false, false);
-            this->_CurrentState = MyState::ESTABLISHED;
+            this->_receiver.segment_received(seg);
+            this->_sender.ack_received(seg.header().ackno, seg.header().win);
+            if(seg.length_in_sequence_space() != 0)
+                this->sendAck(false, false);
+            else
+                this->sendSegment(false, false);                    // if the segment occupies no space, only send data 
+        }       
+    }
+    else if(this->_CurrentState == MyState::LAST_ACK)               // LAST_ACK √
+    {
+        if(seg.header().ack)
+        {
+            this->_receiver.segment_received(seg);
+            this->_sender.ack_received(seg.header().ackno, seg.header().win);
+            /* if all the data has been acked and no need to linger */
+            if(this->_sender.bytes_in_flight() == 0 && !this->_linger_after_streams_finish)    
+            {
+                this->_IsActive = false;                             // abort the connection cleanly      
+                this->_CurrentState = MyState::CLOSED;
+            }
+            else if(this->_sender.bytes_in_flight() > 0)             // ack is not received for FIN
+            {
+                if(seg.length_in_sequence_space() != 0)
+                        sendAck(false, false);
+            }
+                    
         }
-    /* simultaneous open ? */
-    else if (
-                this->_CurrentState == MyState::SYN_SENT &&
-                this->_receiver.isISNReceived() == true &&              // SYN has been received
-                this->_sender.bytes_in_flight() != 0                    // but ack is not received 
-            )
+    }
+    else if(this->_CurrentState == MyState::FIN_WAIT1)               // FIN_WAIT1 √
+    {  
+        if(seg.header().ack)
+        {
+            this->_receiver.segment_received(seg);
+            this->_sender.ack_received(seg.header().ackno, seg.header().win);
+            if(seg.header().fin)                                     // transform to TIME_WAIT/CLOSING
             {
-                this->sendAck(false, false);                            // why the SYN is false ???
-                this->_CurrentState = MyState::SYN_RCVD;
-            }
-    else if (
-                this->_CurrentState == MyState::SYN_RCVD &&
-                this->_sender.bytes_in_flight() == 0                    // 3-way handshake is completed
-            )
-            {
-                this->_CurrentState = MyState::ESTABLISHED;             // only transfer to ESTABLISHED state
-            }
-    else if (
-                this->_CurrentState == MyState::ESTABLISHED &&          // TCP is now in ESTABLISHED state
-                this->_receiver.stream_out().input_ended() == false     // FIN has not been acked
-            )               
-            {
-                if(seg.length_in_sequence_space() != 0)  // if arriving segment contains data, ack is needed
-                    this->sendAck(false, false);
-            }   
-    /* passive close processing */
-    else if (
-                this->_CurrentState == MyState::ESTABLISHED &&          // TCP is now in ESTABLISHED state
-                this->_receiver.stream_out().input_ended() == true      // FIN has been received
-            )
-            {
-                this->sendAck(false, false);
-                this->_CurrentState = MyState::CLOSE_WAIT;
-            }
-    else if (
-                this->_CurrentState == MyState::CLOSE_WAIT              // TCP is now in CLOSE_WAIT state
-            )
-            {
-                if(seg.length_in_sequence_space() != 0)
-                    this->sendAck(false, false);
-            }
-    else if (
-                this->_CurrentState == MyState::LAST_ACK &&
-                this->_sender.bytes_in_flight() != 0                    // FIN has not been acked
-            )
-            {
-                if(seg.length_in_sequence_space() != 0)
-                    this->sendAck(false, false);
-                
-            }
-    else if (
-                this->_CurrentState == MyState::LAST_ACK &&             // TCP is now in LAST_ACK state
-                this->_sender.bytes_in_flight() == 0                    // FIN has been acked
-            )
-            {
-                if(this->_linger_after_streams_finish == false)
+                if(this->_sender.bytes_in_flight() == 0 && this->_receiver.stream_out().input_ended())
                 {
-                    this->_IsActive = false;                            // abort the connection immediately, no lingering
-                    this->_CurrentState = MyState::CLOSED;
+                    this->sendAck(false, false);
+                    this->_CurrentState = MyState::TIME_WAIT;       // transform to TIME_WAIT
+                    this->_LastReceivedTimer.startTimer();          // start the timer to record elapsed time
                 }
+                else if(this->_sender.bytes_in_flight() > 0 && this->_receiver.stream_out().input_ended())
+                {
+                    this->sendAck(false, false);
+                    this->_CurrentState = MyState::CLOSING;
+                }
+                /* FIN has not been received, maybe discarded in reassembler */
+                else if(this->_sender.bytes_in_flight() == 0 && !this->_receiver.stream_out().input_ended())  
+                {
+                    this->sendAck(false, false);
+                    this->_CurrentState = MyState::FIN_WAIT2;
+                }  
+                else
+                    this->sendAck(false, false);
             }
-    else if (
-                this->_CurrentState == MyState::FIN_WAIT1 &&            // TCP is now in FIN_WAIT1 state
-                this->_receiver.stream_out().input_ended() == true &&   
-                this->_sender.bytes_in_flight() == 0                    // FIN and ack has been received
-            )
+            else                                                        // transform to FIN_WAIT2(can seg.header().ack be removed ?)
             {
-                
-                this->sendAck(false, false);
-                this->_CurrentState = MyState::TIME_WAIT;                       // the status transform from FIN_WAIT1 to TIMEWAIT 
-                if(this->_linger_after_streams_finish == true)
-                    this->_LastReceivedTimer.startTimer();
-            }
-    else if (
-                this->_CurrentState == MyState::FIN_WAIT1 &&            // TCP is now in FIN_WAIT1 state
-                this->_receiver.stream_out().input_ended() == false &&  // FIN has not been received
-                this->_sender.bytes_in_flight() == 0                    // and all the segments(FIN) has been acked
-            )
-            {
-                this->_CurrentState = MyState::FIN_WAIT2;                       // state transform to FIN_WAIT2
-            }
-    /* simultaneous close */
-    else if (
-                this->_CurrentState == MyState::FIN_WAIT1 &&            // TCP is now in FIN_WAIT1 state
-                this->_receiver.stream_out().input_ended() == true  &&  // FIN has been received
-                this->_sender.bytes_in_flight() != 0                    // FIN has not been acked
-            )
-            {
-                this->sendAck(false, false);
-                this->_CurrentState = MyState::CLOSING;
-            }
-    else if (
-                this->_CurrentState == MyState::FIN_WAIT2 &&            // TCP is now in FIN_WAIT2 state
-                this->_receiver.stream_out().input_ended() == true      // FIN has been received
-            )
-            {   
-                this->sendAck(false, false);                                  
-                this->_CurrentState = MyState::TIME_WAIT;
-                if(this->_linger_after_streams_finish == true)                  
-                    this->_LastReceivedTimer.startTimer();              // start the timer
-            }
-    else if (
-                this->_CurrentState == MyState::CLOSING &&              // TCP is now in CLOSING state and receive ack
-                this->_sender.bytes_in_flight() == 0
-            )
-            {                                                           // send nothing
-                this->_CurrentState = MyState::TIME_WAIT;               // transform to TIME_WAIT state
-                if(this->_linger_after_streams_finish == true)          // start timer
-                    this->_LastReceivedTimer.startTimer();
-            }
-    else if (
-                this->_CurrentState == MyState::TIME_WAIT
-            )
-            {   
                 if(seg.length_in_sequence_space() != 0)
                     this->sendAck(false, false);
-                this->_LastReceivedTimer.resetTimer();                          
-                this->_LastReceivedTimer.startTimer();                          // restart the timer    
+                if(this->_sender.bytes_in_flight() == 0)
+                    this->_CurrentState = MyState::FIN_WAIT2;
             }
+        }    
+    }
+    else if(this->_CurrentState == MyState::CLOSING)                    // CLOSING √
+    {
+        if(seg.header().ack)
+        {
+            this->_receiver.segment_received(seg);
+            this->_sender.ack_received(seg.header().ackno, seg.header().win);
+            if(seg.length_in_sequence_space() != 0)
+                this->sendAck(false, false);
+            if(this->_sender.bytes_in_flight() == 0)
+            {
+                this->_CurrentState = MyState::TIME_WAIT;
+                this->_LastReceivedTimer.startTimer();                  // start the timer to record elapsed time
+            }
+        }
+    }
+    else if(this->_CurrentState == MyState::FIN_WAIT2)                  // FIN_WAIT2 √
+    {
+        if(seg.header().ack)
+        {
+            this->_receiver.segment_received(seg);
+            this->_sender.ack_received(seg.header().ackno, seg.header().win);
+            if(seg.header().fin)
+            {
+                if(this->_receiver.stream_out().input_ended())          // FIN has been received
+                {
+                    this->sendAck(false, false);
+                    this->_CurrentState = MyState::TIME_WAIT;
+                    this->_LastReceivedTimer.startTimer();
+                }
+                else                                                    // FIN may has been discarded
+                    this->sendAck(false, false);
+            }
+            else
+                if(seg.length_in_sequence_space() != 0)
+                    this->sendAck(false, false);
+        }
+    }
+    else if(this->_CurrentState == MyState::TIME_WAIT)                  // TIME_WAIT √
+    {
+        if(seg.header().ack)
+        {
+            // do not accept any new segment here
+            this->_LastReceivedTimer.resetTimer();
+            this->_LastReceivedTimer.startTimer();                      // restart the timer
+            if(seg.length_in_sequence_space() != 0)                     // ack the segment if necessary
+                this->sendAck(false, false);
+        }
+    }
+    
 }
 
 bool TCPConnection::active() const { 
@@ -323,16 +317,12 @@ void TCPConnection::tick(const size_t ms_since_last_tick) {
 
     /* UNCLEAN SHUTDOWN 1 : EXCEED MAX_RETX_ATTEMPTS */
     /* 2. check whether the retransmission times has exceeded the max retransmission times */
-    else if(this->_sender.consecutive_retransmissions() > TCPConfig::MAX_RETX_ATTEMPTS)
+    else
     {
         /* send a RST segment to abort the connection */
         /* 2.1 force the sender send a segemnt */
         /* OR： this->sendSegment(true) */
-        if(this->sendSegment(true, false) == false)
-        {
-            this->_sender.send_empty_segment();
-            this->sendSegment(true, false);
-        }
+        this->sendAck(true, false);
 
         /* 2.3 set the error bit of in-bound and out-bound byte stream */
         /* also, _IsActive is set to false */
@@ -397,11 +387,7 @@ TCPConnection::~TCPConnection() {
 
             /* UNCLEAN SHUTDOWN 2 : dtor is called when TCPConnection is active */
             /* send a segment from sender whose RST flag is true */
-            if(this->sendSegment(true, false) == false)
-            {
-                this->_sender.send_empty_segment();
-                this->sendSegment(true, false);
-            }
+            this->sendAck(true, false);
             this->_sender.stream_in().set_error();          // set error flag in outbound byte stream
             this->_receiver.stream_out().set_error();       // set error flag in inbound byte stream
             this->_CurrentState = MyState::RESET;
