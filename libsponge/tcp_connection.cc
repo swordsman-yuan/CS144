@@ -41,9 +41,10 @@ bool TCPConnection::sendSegment(bool RST, bool SYN){
             Front.header().ack = true;                                                                      // set the ack flag
             Front.header().ackno = this->_receiver.ackno().value();                                         // set the seqno if existing
             Front.header().win = this->_receiver.window_size() > std::numeric_limits<uint16_t>::max() ?     // set window size
-                                    std::numeric_limits<uint16_t>::max() : this->_receiver.window_size();
+                                    std::numeric_limits<uint16_t>::max() : this->_receiver.window_size();   
         }
         this->segments_out().push(Front);       // send out the segment
+        // this->debugPrint(Front, true);
     }
     return true;
 }
@@ -57,6 +58,23 @@ void TCPConnection::sendAck(bool RST, bool SYN)
         this->_sender.send_empty_segment();                     
         this->sendSegment(RST, SYN);
     }  
+}
+
+void TCPConnection::debugPrint(const TCPSegment& seg, bool Direction)
+{
+    cerr << "*****************************************" << endl;
+    if(Direction)
+        cerr << " SEND " << endl;
+    else
+        cerr << " RECEIVE " << endl;
+    cerr << " SYN FLAG: " << seg.header().syn << endl;
+    cerr << " ACK FLAG: " << seg.header().ack << endl;
+    cerr << " ACKNO "     << seg.header().ackno << endl;
+    cerr << " FIN FLAG: " << seg.header().fin << endl;
+    cerr << " SEQNO "     << seg.header().seqno << endl;
+    cerr << " WINDOW "    << seg.header().win << endl;
+    cerr << " PAYLOAD: "  << seg.payload().copy().size() << endl;
+    cerr << "*****************************************" << endl;
 }
 
 /* helper function added by zheyuan */
@@ -74,7 +92,7 @@ size_t TCPConnection::unassembled_bytes() const {
 }
 
 size_t TCPConnection::time_since_last_segment_received() const { 
-    return this->_LastReceivedTimer.getTime();
+    return this->_TimeElapsedSinceLastRecv;
 }
 
 void TCPConnection::segment_received(const TCPSegment &seg) {    
@@ -106,7 +124,12 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             this->sendAck(false, false);
             return;
         }
-    
+
+    /* reset the time since last segment received */
+    this->_TimeElapsedSinceLastRecv = 0;
+
+    // this->debugPrint(seg, false);
+
     /* FSM FOR TCP CONNECTION */
     if(this->_CurrentState == MyState::LISTEN)                      // LISTEN √
     {
@@ -157,7 +180,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             {
                 if(!this->_sender.stream_in().eof())                // passive close, lingering is not needed
                     this->_linger_after_streams_finish = false;
-                if(seg.length_in_sequence_space() != 0) 
+                if(seg.length_in_sequence_space() != 0)             // not necessary
                     this->sendAck(false, false);
                 this->_CurrentState = MyState::CLOSE_WAIT;              
             }
@@ -306,6 +329,8 @@ size_t TCPConnection::write(const string &data) {
 void TCPConnection::tick(const size_t ms_since_last_tick) { 
     if(this->_IsActive == false)
         return;
+    
+    this->_TimeElapsedSinceLastRecv += ms_since_last_tick;
 
     /* 1.tell the sender about the passage of time */
     /* the tick method may increment the retransmission times */
@@ -374,8 +399,14 @@ void TCPConnection::connect() {
 
     /* 2.take out the TCPSegment and send out */
     if(this->sendSegment(false, true) == true)
+    {
         /* the TCP now enters active connection status */
         this->_CurrentState = MyState::SYN_SENT;           
+
+        /* DEBUG */
+        cerr << "ZZY:LISTEN->SYN_SENT" << endl;
+    }
+        
 
 }
 
