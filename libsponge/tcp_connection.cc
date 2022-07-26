@@ -122,6 +122,11 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         )
         {
             this->sendAck(false, false);
+            if(this->_CurrentState == MyState::TIME_WAIT)
+            {
+                this->_LastReceivedTimer.resetTimer();
+                this->_LastReceivedTimer.startTimer();
+            }
             return;
         }
 
@@ -272,6 +277,8 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             {
                 if(seg.length_in_sequence_space() != 0)
                     this->sendAck(false, false);
+                else 
+                    this->sendSegment(false, false);
                 if(this->_sender.bytes_in_flight() == 0)
                     this->_CurrentState = MyState::FIN_WAIT2;
             }
