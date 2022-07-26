@@ -103,7 +103,6 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
                         ++this->_NextIndex;
                 }
                         
-        
                 /*2.4 erase the first element in _ArrivalStrManager*/
                 this->_ArrivalStrManager.erase(this->_ArrivalStrManager.begin());
         }

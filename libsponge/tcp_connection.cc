@@ -157,7 +157,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             this->_CurrentState = MyState::SYN_RCVD;                
         }
     }
-    else if(this->_CurrentState == MyState::SYN_RCVD)               // SYN_RCVD ？
+    else if(this->_CurrentState == MyState::SYN_RCVD)               // SYN_RCVD ?
     {
         if(seg.header().ack)
         {
@@ -168,7 +168,6 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             else if(seg.length_in_sequence_space() != 0)
                 this->sendAck(false, false);
         }
-        
     }
     else if(this->_CurrentState == MyState::ESTABLISHED)            // ESTABLISHED √
     {
@@ -216,12 +215,12 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             if(seg.length_in_sequence_space() != 0)
                 this->sendAck(false, false);
             else
-                this->sendSegment(false, false);                    // if the segment occupies no space, only send data 
-            if(this->_sender.isFINSent())                           // transform to LAST_ACK
+                this->sendSegment(false, false);                        // if the segment occupies no space, only send data 
+            if(this->_sender.isFINSent())                               // transform to LAST_ACK
                 this->_CurrentState = MyState::LAST_ACK;
         }       
     }
-    else if(this->_CurrentState == MyState::LAST_ACK)                 // LAST_ACK √
+    else if(this->_CurrentState == MyState::LAST_ACK)                   // LAST_ACK √
     {
         if(seg.header().ack)
         {
@@ -307,7 +306,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
                     this->_CurrentState = MyState::TIME_WAIT;
                     this->_LastReceivedTimer.startTimer();
                 }
-                else                                                    // FIN may has been discarded
+                else                                                    // FIN may be discarded
                     this->sendAck(false, false);
             }
             else
