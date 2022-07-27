@@ -60,23 +60,6 @@ void TCPConnection::sendAck(bool RST, bool SYN)
     }  
 }
 
-void TCPConnection::debugPrint(const TCPSegment& seg, bool Direction)
-{
-    cerr << "*****************************************" << endl;
-    if(Direction)
-        cerr << " SEND " << endl;
-    else
-        cerr << " RECEIVE " << endl;
-    cerr << " SYN FLAG: " << seg.header().syn << endl;
-    cerr << " ACK FLAG: " << seg.header().ack << endl;
-    cerr << " ACKNO "     << seg.header().ackno << endl;
-    cerr << " FIN FLAG: " << seg.header().fin << endl;
-    cerr << " SEQNO "     << seg.header().seqno << endl;
-    cerr << " WINDOW "    << seg.header().win << endl;
-    cerr << " PAYLOAD: "  << seg.payload().copy().size() << endl;
-    cerr << "*****************************************" << endl;
-}
-
 /* helper function added by zheyuan */
 
 size_t TCPConnection::remaining_outbound_capacity() const { 
@@ -96,6 +79,9 @@ size_t TCPConnection::time_since_last_segment_received() const {
 }
 
 void TCPConnection::segment_received(const TCPSegment &seg) {    
+    /* reset the time since last segment received */
+    this->_TimeElapsedSinceLastRecv = 0;
+
     /* 0.1 special case handler : if connection is not active, return directly */
     if(this->_IsActive == false)
         return;
@@ -117,11 +103,11 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
     /* 0.3 special case handler : respond to keep-alive segment */
     if  ( 
             this->_receiver.ackno().has_value() && 
-            operator-(this->_receiver.ackno().value(), 1) == seg.header().seqno && 
+            operator-(this->_receiver.ackno().value(), 1) == seg.header().seqno  &&
             seg.length_in_sequence_space() == 0         // feature of keep-alive segment
         )
         {
-            this->sendAck(false, false);
+            this->sendAck(false, false); 
             if(this->_CurrentState == MyState::TIME_WAIT)
             {
                 this->_LastReceivedTimer.resetTimer();
@@ -130,9 +116,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             return;
         }
 
-    /* reset the time since last segment received */
-    this->_TimeElapsedSinceLastRecv = 0;
-
+    
     // this->debugPrint(seg, false);
 
     /* FSM FOR TCP CONNECTION */
