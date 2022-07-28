@@ -164,34 +164,28 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         {
             this->_receiver.segment_received(seg);
             this->_sender.ack_received(seg.header().ackno, seg.header().win);   // fill_window can be called
-            if(seg.header().fin)
+            if(this->_receiver.stream_out().input_ended())          // FIN has been received
             {
-                if(this->_receiver.stream_out().input_ended())          // FIN has been received
-                {
-                    this->_linger_after_streams_finish = false;         // must be false, cause FIN has not been send out
-                    this->sendAck(false, false);
+                this->_linger_after_streams_finish = false;         // must be false, cause FIN has not been send out
 
-                    /* transformation happens for certain */
-                    if(this->_sender.isFINSent())
-                        this->_CurrentState = MyState::LAST_ACK;
-                    else
-                        this->_CurrentState = MyState::CLOSE_WAIT;              
-                }
-                else                                                    // FIN lost or discarded
-                {             
-                    this->sendAck(false, false);
-                    if(this->_sender.isFINSent())                       // transform to FIN_WAIT1
-                        this->_CurrentState = MyState::FIN_WAIT1;
-                }
+                /* transformation happens for certain */
+                if(this->_sender.isFINSent())
+                    this->_CurrentState = MyState::LAST_ACK;
+                else
+                    this->_CurrentState = MyState::CLOSE_WAIT;              
+                if(seg.length_in_sequence_space() != 0)
+                    this->sendAck(false, false);                    // respond ack 
+                else
+                    this->sendSegment(false, false);                // not necessary, the segment cannot be empty
             }
-            else                                                        // respond to seg normally
-            {
+            else                                                    // FIN lost or discarded
+            {             
+                if(this->_sender.isFINSent())                       // transform to FIN_WAIT1
+                    this->_CurrentState = MyState::FIN_WAIT1;
                 if(seg.length_in_sequence_space() != 0)
                     this->sendAck(false, false);
                 else
                     this->sendSegment(false, false);
-                if(this->_sender.isFINSent())
-                    this->_CurrentState = MyState::FIN_WAIT1;
             }
         }
     }
@@ -201,12 +195,13 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         {
             this->_receiver.segment_received(seg);
             this->_sender.ack_received(seg.header().ackno, seg.header().win);
+            if(this->_sender.isFINSent())                               // transform to LAST_ACK
+                this->_CurrentState = MyState::LAST_ACK;
             if(seg.length_in_sequence_space() != 0)
                 this->sendAck(false, false);
             else
                 this->sendSegment(false, false);                        // if the segment occupies no space, only send data 
-            if(this->_sender.isFINSent())                               // transform to LAST_ACK
-                this->_CurrentState = MyState::LAST_ACK;
+            
         }       
     }
     else if(this->_CurrentState == MyState::LAST_ACK)                   // LAST_ACK √
@@ -235,39 +230,23 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         {
             this->_receiver.segment_received(seg);
             this->_sender.ack_received(seg.header().ackno, seg.header().win);
-            if(seg.header().fin)                                     // transform to TIME_WAIT/CLOSING
+           
+            if(this->_sender.bytes_in_flight() == 0 && this->_receiver.stream_out().input_ended())
             {
-                if(this->_sender.bytes_in_flight() == 0 && this->_receiver.stream_out().input_ended())
-                {
-                    this->sendAck(false, false);
-                    this->_CurrentState = MyState::TIME_WAIT;       // transform to TIME_WAIT
-                    this->_LastReceivedTimer.startTimer();          // start the timer to record elapsed time
-                }
-                else if(this->_sender.bytes_in_flight() > 0 && this->_receiver.stream_out().input_ended())
-                {
-                    this->sendAck(false, false);
-                    this->_CurrentState = MyState::CLOSING;
-                }
-                /* FIN has not been received, maybe discarded in reassembler or lost */
-                else if(this->_sender.bytes_in_flight() == 0 && !this->_receiver.stream_out().input_ended())  
-                {
-                    this->sendAck(false, false);
-                    this->_CurrentState = MyState::FIN_WAIT2;
-                }  
-                else
-                    this->sendAck(false, false);
+                this->_CurrentState = MyState::TIME_WAIT;       // transform to TIME_WAIT
+                this->_LastReceivedTimer.startTimer();          // start the timer to record elapsed time
             }
-            else                                                        // transform to FIN_WAIT2(can seg.header().ack be removed ?)
-            {
-                if(seg.length_in_sequence_space() != 0)
-                    this->sendAck(false, false);
-                else 
-                    this->sendSegment(false, false);
-                if(this->_sender.bytes_in_flight() == 0)
-                    this->_CurrentState = MyState::FIN_WAIT2;
-            }
-        }    
-    }
+            else if(this->_sender.bytes_in_flight() > 0 && this->_receiver.stream_out().input_ended())
+                this->_CurrentState = MyState::CLOSING;
+            /* FIN has not been received, maybe discarded in reassembler or lost */
+            else if(this->_sender.bytes_in_flight() == 0 && !this->_receiver.stream_out().input_ended())  
+                this->_CurrentState = MyState::FIN_WAIT2;
+
+            if(seg.length_in_sequence_space() != 0)
+                this->sendAck(false, false);
+                                                                // else do nothing, no more data to send
+        }
+    }    
     else if(this->_CurrentState == MyState::CLOSING)                    // CLOSING √
     {
         if(seg.header().ack)
@@ -289,20 +268,15 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         {
             this->_receiver.segment_received(seg);
             this->_sender.ack_received(seg.header().ackno, seg.header().win);
-            if(seg.header().fin)
+            
+            if(this->_receiver.stream_out().input_ended())          // FIN has been received
             {
-                if(this->_receiver.stream_out().input_ended())          // FIN has been received
-                {
-                    this->sendAck(false, false);
-                    this->_CurrentState = MyState::TIME_WAIT;
-                    this->_LastReceivedTimer.startTimer();
-                }
-                else                                                    // FIN may be discarded
-                    this->sendAck(false, false);
+                this->sendAck(false, false);
+                this->_CurrentState = MyState::TIME_WAIT;
+                this->_LastReceivedTimer.startTimer();
             }
-            else
-                if(seg.length_in_sequence_space() != 0)
-                    this->sendAck(false, false);
+            else if(seg.length_in_sequence_space() != 0)            // FIN may be discarded
+                this->sendAck(false, false);
         }
     }
     else if(this->_CurrentState == MyState::TIME_WAIT)                  // TIME_WAIT √
