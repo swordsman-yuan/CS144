@@ -21,15 +21,13 @@ class TCPReceiver {
     size_t _capacity;
 
     /*private member added by zheyuan*/
-    WrappingInt32 _ISN{0};     // initial sequence number
-    bool _NeedAck{false};       // when arriving segment contains data, ack is needed
-    bool _IsISN{false};            // flag indicating whether the ISN has been set or not
+    WrappingInt32 _ISN{0};          // initial sequence number
+    bool _IsISN{false};             // flag indicating whether the ISN has been set or not
     /* private member added by zheyuan */
 
   public:
     /* helper function added by zheyuan */
     bool isISNReceived(){ return this->_IsISN; }
-    bool needAck(){ return this->_NeedAck; }
     /* helper function added by zheyuan */
     //! \brief Construct a TCP receiver
     //!

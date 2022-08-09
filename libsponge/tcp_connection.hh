@@ -9,18 +9,18 @@
 /* helper enumeration added by zheyuan */
 /* refer to TCP state transition diagram */
 enum MyState{
-              CLOSED,
-              LISTEN,
-              SYN_RCVD,
-              SYN_SENT, 
-              ESTABLISHED, 
-              FIN_WAIT1, 
-              FIN_WAIT2, 
-              CLOSING, 
-              CLOSE_WAIT, 
-              LAST_ACK, 
-              TIME_WAIT,
-              RESET
+              CLOSED,                     // 0
+              LISTEN,                     // 1
+              SYN_RCVD,                   // 2
+              SYN_SENT,                   // 3
+              ESTABLISHED,                // 4
+              FIN_WAIT1,                  // 5
+              FIN_WAIT2,                  // 6
+              CLOSING,                    // 7
+              CLOSE_WAIT,                 // 8
+              LAST_ACK,                   // 9
+              TIME_WAIT,                  // 10
+              RESET                       // 11
             };
 /* helper enumeration added by zheyuan */
 
@@ -51,6 +51,11 @@ class TCPConnection {
     /* private member added by zheyuan */
 
   public:
+    /* debug function added by zheyuan */
+    MyState getState(){return this->_CurrentState;}
+    bool isFINSent(){return this->_sender.isFINSent();}
+    /* debug function added by zheyuan */
+
     //! \name "Input" interface for the writer
     //!@{
 

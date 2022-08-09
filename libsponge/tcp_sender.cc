@@ -33,7 +33,7 @@ void TCPSender::fill_window() {
     /* 0.2 special case handler, if stream has reached its eof */
     /* and the FIN flag has not been sent out */
     /* ATTENTION: _RemainingSpace should be larger than 0, cause FIN should occupy window space */
-    if(this->_RemainingSpace > 0 && !this->_IsFIN && this->stream_in().eof())
+    if(this->_RemainingSpace > 0 && !this->_IsFIN && this->stream_in().eof() && this->_IsSYN)
     {
         TCPSegment Segment;
 
@@ -141,7 +141,9 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
         /* the segment has been fully acknowledged by receiver */
         if(AbsSeqno + OccupiedSpace == AckAbsSeqno)
         {
-            this->_NotAcknowledged.pop();   // pop out the segment
+            this->_NotAcknowledged.pop();   //  pop out the segment
+            if(Front.header().syn == true)  //  if the syn segment has been acked
+                this->_IsSYNAcked = true;   //  set the flag as true  
             this->_ByteInFlight -= OccupiedSpace;
             PopFlag = true;
         }
@@ -154,6 +156,8 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
                 this->_NotAcknowledged.push(Front); // push the segment back to queue
                 break;                              // and jump out of loop
             }
+            if(Front.header().syn == true)  //  if the syn segment has been acked
+                this->_IsSYNAcked = true;   //  set the flag as true  
             this->_ByteInFlight -= OccupiedSpace;
             PopFlag = true;
         }

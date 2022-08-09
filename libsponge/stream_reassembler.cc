@@ -35,8 +35,6 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
                         this->_output.end_input();
                         ++this->_NextIndex;
                 }
-                       
-
                 else if(this->_ArrivalStrManager.size() > 0)
                 {
                         size_t Size = this->_ArrivalStrManager.size();
@@ -130,6 +128,9 @@ bool StreamReassembler::empty() const
 /*I am inspired by leetcode 56 : merge intevals :)*/
 vector<_SubString> StreamReassembler::mergeInteval() // O(nlogn)
 {
+        if(this->_ArrivalStrManager.size() <= 1)     // no need to merge, return directly
+                return this->_ArrivalStrManager;
+
         /*after each merge operation, the _ArrivalStrManager will be updated*/
         vector<_SubString> NewManager;
 

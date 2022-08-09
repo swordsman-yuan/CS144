@@ -24,10 +24,6 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
     /*2.push any data or end-of-stream marker to the StreamReassembler*/
     /*2.1 extract the payload out of TCPSegment*/
     std::string Data = seg.payload().copy();
-    if(Data.size() == 0)
-        this->_NeedAck = false;
-    else
-        this->_NeedAck = true;
 
     /*2.2 calculate the index of newly-arrived data*/
     /*for the TCPSegment whose syn flag is true, 
