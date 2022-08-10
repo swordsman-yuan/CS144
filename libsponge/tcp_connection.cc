@@ -1,5 +1,4 @@
 #include "tcp_connection.hh"
-
 #include <iostream>
 
 // Dummy implementation of a TCP connection
@@ -115,7 +114,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             return;
         }
 
-    /* FSM FOR TCP CONNECTION */
+    /* MAIN CODE : FSM FOR TCP CONNECTION */
     if(this->_CurrentState == MyState::LISTEN)                      // LISTEN √
     {
         if(seg.header().syn)                                        // if the arriving segment's SYN is true
@@ -209,10 +208,10 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
             /* if all the data has been acked and no need to linger */
             if(this->_sender.bytes_in_flight() == 0 && !this->_linger_after_streams_finish)    
             {
-                this->_IsActive = false;                             // abort the connection cleanly      
+                this->_IsActive = false;                                // passive close : abort the connection cleanly      
                 this->_CurrentState = MyState::CLOSED;
             }
-            else if(this->_sender.bytes_in_flight() > 0)             // ack is not received for FIN
+            else if(this->_sender.bytes_in_flight() > 0)                // ack is not received for FIN
             {
                 if(seg.length_in_sequence_space() != 0)
                         this->sendAck(false, false);
@@ -226,7 +225,6 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
         {
             this->_receiver.segment_received(seg);
             this->_sender.ack_received(seg.header().ackno, seg.header().win);
-           
             if(this->_sender.bytes_in_flight() == 0 && this->_receiver.stream_out().input_ended())
             {
                 this->_CurrentState = MyState::TIME_WAIT;       // transform to TIME_WAIT
@@ -355,7 +353,7 @@ void TCPConnection::end_input_stream() {
         return; 
     
     this->_sender.fill_window();
-    this->sendSegment(false, false);                        // send out the segment with FIN set
+    this->sendSegment(false, false);                        // try to send out the segment with FIN set, but may not succeed
     
     /* if the TCP is in ESTABLISHED status */
     /* the FIN flag should be sent out */

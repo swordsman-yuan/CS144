@@ -142,7 +142,7 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
         if(AbsSeqno + OccupiedSpace == AckAbsSeqno)
         {
             this->_NotAcknowledged.pop();   //  pop out the segment
-            if(Front.header().syn == true)  //  if the syn segment has been acked
+            if(Front.header().syn == true)  //  if the segment which has been acked, its syn flag is true
                 this->_IsSYNAcked = true;   //  set the flag as true  
             this->_ByteInFlight -= OccupiedSpace;
             PopFlag = true;
@@ -150,7 +150,7 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
         else if(AbsSeqno + OccupiedSpace < AckAbsSeqno)
         {
             this->_NotAcknowledged.pop();
-            /* wrong seqno arrived, the ackno is larger than the sum of bytes has been sent */
+            /* special case : wrong seqno arrived, the ackno is larger than the sum of bytes has been sent */
             if(this->_NotAcknowledged.empty())      
             {
                 this->_NotAcknowledged.push(Front); // push the segment back to queue

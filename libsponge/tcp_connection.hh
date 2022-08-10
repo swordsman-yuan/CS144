@@ -42,12 +42,11 @@ class TCPConnection {
     /* private member added by zheyuan */
     /* initalize as false, after executing 'connect' function, it is set as true */
     size_t _TimeElapsedSinceLastRecv{0};
-    MyState _CurrentState{MyState::LISTEN};    
+    MyState _CurrentState{MyState::LISTEN};     // the state is initialized as LISTEN
     bool _IsActive{true};  
     Timer _LastReceivedTimer{};                 // timer to record the time passed since the last segment received
     bool sendSegment(bool RST, bool SYN);       // set the field maintained by tcp receiever and send out immediately
     void sendAck(bool RST, bool SYN);  // send out at least one segment with flag correctly set 
-    void debugPrint(const TCPSegment& seg, bool Direction);
     /* private member added by zheyuan */
 
   public:
