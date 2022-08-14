@@ -7,6 +7,8 @@
 
 #include <optional>
 #include <queue>
+#include <map>
+#include <utility>
 
 //! \brief A "network interface" that connects IP (the internet layer, or network layer)
 //! with Ethernet (the network access layer, or link layer).
@@ -34,17 +36,23 @@
 
 struct EthernetAddrRecord
 {
-    EthernetAddress _EtherAddr;             // Ethernet Address
-    size_t _TimeKeeper;                     // how long the record has been kept
-    EthernetAddrRecord(EthernetAddress EtherAddr) : _EthernetAddress
-}
+    EthernetAddress _EtherAddr;                           // Ethernet Address
+    size_t _TimeKeeper;                                   // how long the mapping record has been kept
+    EthernetAddrRecord() : _EtherAddr(), _TimeKeeper(0){} // default ctor
+    EthernetAddrRecord(EthernetAddress EtherAddr) : _EtherAddr(EtherAddr), _TimeKeeper(0){}
+};
 
 struct EthernetAddrUnknownDatagram
 {
-    uint32_t _IPAddress{0};                  
-    InternetDatagram _Datagram{};            // using default ctor
-    EthernetAddrUnknownDatagram(uint32_t IPAddress, InternetDatagram Datagram) : 
-}
+    uint32_t _IPAddress;                  
+    InternetDatagram _Datagram;                           // using default ctor
+    EthernetAddrUnknownDatagram() : _IPAddress(), _Datagram(){}
+    EthernetAddrUnknownDatagram(uint32_t IPAddress, InternetDatagram Datagram) : _IPAddress(IPAddress), _Datagram()
+    {
+      _Datagram.header() = Datagram.header();
+      _Datagram.payload() = BufferList(std::move(Datagram.payload().concatenate()));
+    }
+};
 
 /* helper class added by zheyuan */
 
@@ -59,12 +67,21 @@ class NetworkInterface {
     //! outbound queue of Ethernet frames that the NetworkInterface wants sent
     std::queue<EthernetFrame> _frames_out{};
 
-    /* private member added by zheyuan */
-    map<uint32_t, EthernetAddrRecord> _Cache{};                     // cache stores the mapping relationship
-    std::queue<EthernetAddrUnknownDatagram> _EthernetAddrUnknown{};         // ack message which has not been acked
-    /* private member added by zheyuan */
+    /* private members added by zheyuan */
+
+    static constexpr size_t _NOTFLOOD = 5000;                               // 5000ms(5s) is the guarantee of not flooding the network
+    static constexpr size_t _KEEPTIME = 30000;                              // 30000ms(30s) is the longest time record can be kept in cache
+    std::map<uint32_t, EthernetAddrRecord> _Cache{};                        // cache stores the mapping relationship
+    std::map<uint32_t, size_t> _KeepARPNotFlood{};                          // make sure the ARP message not flood the network
+    std::queue<EthernetAddrUnknownDatagram> _EthernetAddrUnknown{};         // IPDatagram whose dst MAC address is not known
+
+    /* private members added by zheyuan */
 
   public:
+  /* helper function added by zheyuan */
+  void sendQueuedDatagram();
+  /* helper function added by zheyuan */
+
     //! \brief Construct a network interface with given Ethernet (network-access-layer) and IP (internet-layer) addresses
     NetworkInterface(const EthernetAddress &ethernet_address, const Address &ip_address);
 
