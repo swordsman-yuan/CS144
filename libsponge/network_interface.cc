@@ -140,7 +140,7 @@ optional<InternetDatagram> NetworkInterface::recv_frame(const EthernetFrame &fra
                     Message.target_ethernet_address = ExtractedEtherAddr;         
                     Message.opcode = ARPMessage::OPCODE_REPLY;                                                    
 
-                    /* 2.2 pack the ARPMessage into a EthernetFrame */
+                    /* 2.2 pack the ARPMessage into an EthernetFrame */
                     /* set the frame header's field properly */
                     EthernetFrame Frame;
                     Frame.header().type = EthernetHeader::TYPE_ARP; 
@@ -154,7 +154,7 @@ optional<InternetDatagram> NetworkInterface::recv_frame(const EthernetFrame &fra
         }
         return std::nullopt;
     }
-    
+
     return std::nullopt;
 }
 

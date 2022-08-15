@@ -45,7 +45,7 @@ struct EthernetAddrRecord
 struct EthernetAddrUnknownDatagram
 {
     uint32_t _IPAddress;                  
-    InternetDatagram _Datagram;                           // using default ctor
+    InternetDatagram _Datagram;                           // default ctor is defined
     EthernetAddrUnknownDatagram() : _IPAddress(), _Datagram(){}
     EthernetAddrUnknownDatagram(uint32_t IPAddress, InternetDatagram Datagram) : _IPAddress(IPAddress), _Datagram()
     {
@@ -71,9 +71,9 @@ class NetworkInterface {
 
     static constexpr size_t _NOTFLOOD = 5000;                               // 5000ms(5s) is the guarantee of not flooding the network
     static constexpr size_t _KEEPTIME = 30000;                              // 30000ms(30s) is the longest time record can be kept in cache
-    std::map<uint32_t, EthernetAddrRecord> _Cache{};                        // cache stores the mapping relationship
+    std::map<uint32_t, EthernetAddrRecord> _Cache{};                        // cache stores the mapping(IP-MAC) relationship
     std::map<uint32_t, size_t> _KeepARPNotFlood{};                          // make sure the ARP message not flood the network
-    std::queue<EthernetAddrUnknownDatagram> _EthernetAddrUnknown{};         // IPDatagram whose dst MAC address is not known
+    std::queue<EthernetAddrUnknownDatagram> _EthernetAddrUnknown{};         // buffer IPDatagram whose dst MAC address is not known
 
     /* private members added by zheyuan */
 
