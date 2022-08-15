@@ -45,7 +45,7 @@ struct EthernetAddrRecord
 struct EthernetAddrUnknownDatagram
 {
     uint32_t _IPAddress;                  
-    InternetDatagram _Datagram;                           // default ctor is defined
+    InternetDatagram _Datagram;                           // default ctor
     EthernetAddrUnknownDatagram() : _IPAddress(), _Datagram(){}
     EthernetAddrUnknownDatagram(uint32_t IPAddress, InternetDatagram Datagram) : _IPAddress(IPAddress), _Datagram()
     {

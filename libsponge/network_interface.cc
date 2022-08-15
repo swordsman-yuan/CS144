@@ -119,7 +119,7 @@ optional<InternetDatagram> NetworkInterface::recv_frame(const EthernetFrame &fra
             uint32_t ExtractedIP = RecvMessage.sender_ip_address;
             EthernetAddress ExtractedEtherAddr = RecvMessage.sender_ethernet_address;
 
-            /* 2. keep the mapping into cache, set the timer as 0 automatically */
+            /* 2. keep the mapping into cache(for both request and reply), set the timer as 0 automatically */
             this->_Cache[ExtractedIP] = EthernetAddrRecord(ExtractedEtherAddr);
 
             /* 3. try to send out the IP Datagram which has been queued */
