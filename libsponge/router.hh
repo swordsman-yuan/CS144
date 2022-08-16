@@ -11,6 +11,30 @@
 //! immediately (from the `recv_frame` method), it stores them for
 //! later retrieval. Otherwise, behaves identically to the underlying
 //! implementation of NetworkInterface.
+
+/* helper class added by zheyuan */
+struct RouteItem
+{
+    uint8_t _PrefixLength;
+    std::optional<Address> _NextHop;
+    size_t _InterfaceNum;
+    RouteItem() : _PrefixLength(0), _NextHop(std::nullopt), _InterfaceNum(0){}
+    RouteItem(uint8_t PrefixLength, std::optional<Address> NextHop, size_t InterfaceNum)
+    : _PrefixLength(PrefixLength), _NextHop(NextHop), _InterfaceNum(InterfaceNum){}          // is _NextHop(NextHop) right ?
+
+    /* overload operator= for RouteItem */
+    RouteItem& operator=(const RouteItem& Other)
+    {
+        if(this != &Other)
+        {
+            this->_PrefixLength = Other._PrefixLength;
+            this->_NextHop = Other._NextHop;
+            this->_InterfaceNum = Other._InterfaceNum;
+        }
+        return *this;
+    }  
+};
+
 class AsyncNetworkInterface : public NetworkInterface {
     std::queue<InternetDatagram> _datagrams_out{};
 
@@ -48,6 +72,13 @@ class Router {
     //! as specified by the route with the longest prefix_length that matches the
     //! datagram's destination address.
     void route_one_datagram(InternetDatagram &dgram);
+
+    /* private members added by zheyuan */
+
+    std::map<uint32_t, RouteItem> _RouteTable{};
+    bool prefixMatch(const uint32_t TargetIPAddress, const uint32_t RoutePrefix, const uint8_t PrefixLength);
+
+    /* private members added by zheyuan */
 
   public:
     //! Add an interface to the router

@@ -29,14 +29,58 @@ void Router::add_route(const uint32_t route_prefix,
     cerr << "DEBUG: adding route " << Address::from_ipv4_numeric(route_prefix).ip() << "/" << int(prefix_length)
          << " => " << (next_hop.has_value() ? next_hop->ip() : "(direct)") << " on interface " << interface_num << "\n";
 
-    DUMMY_CODE(route_prefix, prefix_length, next_hop, interface_num);
-    // Your code here.
+    /* 1.insert the router item into table */
+    this->_RouteTable[route_prefix] = RouteItem(prefix_length, next_hop, interface_num);    // is the ctor used correctly ?
 }
+
+bool Router::prefixMatch(const uint32_t TargetIPAddress, const uint32_t RoutePrefix, const uint8_t PrefixLength){
+    if(PrefixLength == 0)
+        return true;
+    
+    /* 1. get the bits need to be shifted */
+    uint8_t ShiftBit = 32 - PrefixLength;
+
+    /* 2. shift number and compare */
+    if((TargetIPAddress >> ShiftBit) == (RoutePrefix >> ShiftBit))
+        return true;
+    return false;
+}
+
 
 //! \param[in] dgram The datagram to be routed
 void Router::route_one_datagram(InternetDatagram &dgram) {
-    DUMMY_CODE(dgram);
-    // Your code here.
+    uint32_t TargetIPAddress = dgram.header().dst;
+    std::optional<RouteItem> MatchItem = std::nullopt;
+    for(auto iter = this->_RouteTable.begin() ; iter != this->_RouteTable.end() ; ++iter)
+    {
+        if(this->prefixMatch(TargetIPAddress, iter->first, iter->second._PrefixLength))
+        {
+			/* longest prefix match implemented here...*/
+			if( !MatchItem.has_value() ||
+                (MatchItem.has_value() && MatchItem.value()._PrefixLength < iter->second._PrefixLength))
+				MatchItem = iter->second;
+        }
+    }
+        
+	if(MatchItem.has_value())
+	{
+		uint8_t TTL = dgram.header().ttl;
+		if(TTL == 0 || (TTL - 1) == 0)	        // if TTL is run out, drop the datagram directly
+			return;
+		
+        /* update the TTL as TTL-1 */
+        dgram.header().ttl = (TTL-1);
+
+		/* send out the dgram to appropriate network interface */
+        if(MatchItem.value()._NextHop.has_value())
+            /* next hop is not null, forward it to next router */
+            this->interface(MatchItem.value()._InterfaceNum).send_datagram(dgram, MatchItem.value()._NextHop.value());            
+        else    
+            /* if the next hop is null, the datagram has reached its destination */
+            this->interface(MatchItem.value()._InterfaceNum).send_datagram(dgram, Address::from_ipv4_numeric(TargetIPAddress));            
+	}
+    else
+        return;         // no matching route item found, drop the datagram directly
 }
 
 void Router::route() {
