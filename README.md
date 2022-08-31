@@ -1,3 +1,3 @@
-# simple-naive-TCP-IP
-A simple implementation of TCP/IP based on stanford CS144
+# CS144 lab
+My solution to stanford CS144
 
