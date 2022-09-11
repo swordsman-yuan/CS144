@@ -108,6 +108,7 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
 
 /*ATTENTION: the substring should be merged before counted*/
 /*ASSERTION: we don't need to invoke mergeInteval everytime*/
+/* the function can be optimized further, if we add a variable to record unassembled_bytes */
 size_t StreamReassembler::unassembled_bytes() const // O(n)
 { 
         size_t Buffered = 0;
